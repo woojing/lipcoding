@@ -2,16 +2,31 @@ from ninja import Schema
 from typing import Optional, List
 
 
+import re
+
+
 class SignUpSchema(Schema):
     email: str
     password: str
     name: str
     role: str
 
+    @staticmethod
+    def validate_email(email: str) -> bool:
+        # 간단한 이메일 정규식
+        return re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email) is not None
+
+    @classmethod
+    def __validate__(cls, value):
+        # ninja의 커스텀 유효성 검사 훅
+        if not cls.validate_email(value["email"]):
+            raise ValueError("유효하지 않은 이메일 형식입니다.")
+        return value
+
 
 class LoginSchema(Schema):
-    email: str
-    password: str
+    email: Optional[str] = None
+    password: Optional[str] = None
 
 
 class TokenSchema(Schema):

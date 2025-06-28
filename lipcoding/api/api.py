@@ -66,7 +66,7 @@ api = NinjaAPI(
     description="멘토와 멘티를 매칭하는 시스템의 REST API",
     openapi_url="/openapi.json",  # OpenAPI JSON 파일 엔드포인트
     docs_url="/docs",  # Swagger UI 엔드포인트 (기본값)
-    auth=GlobalAuth()
+    auth=GlobalAuth(),
 )
 
 
@@ -87,6 +87,9 @@ def hello(request: HttpRequest):
 @router.post("/login", response={200: TokenSchema, 400: dict, 401: dict}, auth=None)
 def login(request: HttpRequest, payload: LoginSchema):
     """로그인 API - JWT 토큰 발급"""
+    # 필수 필드 누락 시 400 반환
+    if not payload.email or not payload.password:
+        return 400, {"error": "이메일과 비밀번호는 필수입니다."}
     user = AuthService.authenticate_user(payload.email, payload.password)
     if user:
         token = AuthService.create_jwt_token(user)
