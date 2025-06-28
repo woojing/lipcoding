@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0003_matchrequest'),
+        ("api", "0003_matchrequest"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='profile',
-            name='image_content_type',
-            field=models.CharField(default='image/jpeg', max_length=50),
+            model_name="profile",
+            name="image_content_type",
+            field=models.CharField(default="image/jpeg", max_length=50),
         ),
         migrations.AddField(
-            model_name='profile',
-            name='image_data',
+            model_name="profile",
+            name="image_data",
             field=models.BinaryField(blank=True, null=True),
         ),
     ]

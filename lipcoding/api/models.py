@@ -57,7 +57,9 @@ class Profile(models.Model):
         max_length=200, blank=True, default="https://placehold.co/500x500.jpg?text=USER"
     )
     image_data = models.BinaryField(null=True, blank=True)  # Base64 이미지 데이터 저장
-    image_content_type = models.CharField(max_length=50, default="image/jpeg")  # 이미지 MIME 타입
+    image_content_type = models.CharField(
+        max_length=50, default="image/jpeg"
+    )  # 이미지 MIME 타입
     skills = models.ManyToManyField(Skill, blank=True)
 
     def __str__(self):
