@@ -59,7 +59,8 @@ class AuthService:
         """사용자 등록"""
         if User.objects.filter(email=email).exists():
             raise ValueError("Email already exists")
-
+        if role not in ["mentor", "mentee"]:
+            raise ValueError("role 값은 mentor 또는 mentee만 허용됩니다.")
         return User.objects.create_user(
             email=email,
             password=password,
@@ -172,8 +173,10 @@ class ProfileService:
 
             return profile.image_data, profile.image_content_type
 
-        except (User.DoesNotExist, Profile.DoesNotExist):
-            raise ValueError("User or profile not found")
+        except User.DoesNotExist:
+            raise ValueError("User not found")
+        except Profile.DoesNotExist:
+            raise ValueError("Profile not found")
 
 
 class MentorService:
@@ -242,7 +245,22 @@ class MatchRequestService:
         except User.DoesNotExist:
             raise ValueError("Mentor not found")
 
-        # 매칭 요청 생성
+        # 메시지 길이 제한 (DB/요구사항)
+        if len(message) > 500:
+            raise ValueError("메시지는 500자 이내여야 합니다.")
+
+        # 중복 요청 방지 (unique_together 및 활성 요청 체크)
+        existing_request = MatchRequest.objects.filter(
+            mentor=mentor, 
+            mentee=mentee, 
+            status__in=["pending", "accepted"]
+        ).first()
+        if existing_request:
+            if existing_request.status == "pending":
+                raise ValueError("이미 해당 멘토에게 요청을 보냈습니다.")
+            elif existing_request.status == "accepted":
+                raise ValueError("이미 해당 멘토와 매칭이 완료되었습니다.")
+
         match_request = MatchRequest.objects.create(
             mentor=mentor,
             mentee=mentee,
@@ -339,6 +357,9 @@ class MatchRequestService:
             match_request = MatchRequest.objects.get(id=request_id, mentee=mentee)
         except MatchRequest.DoesNotExist:
             raise ValueError("Match request not found")
+
+        if match_request.status in ["cancelled", "rejected"]:
+            raise ValueError("이미 취소되었거나 거절된 요청입니다.")
 
         match_request.status = "cancelled"
         match_request.save()

@@ -87,9 +87,6 @@ def hello(request: HttpRequest):
 @router.post("/login", response={200: TokenSchema, 400: dict, 401: dict}, auth=None)
 def login(request: HttpRequest, payload: LoginSchema):
     """로그인 API - JWT 토큰 발급"""
-    # 필수 필드 누락 시 400 반환
-    if not payload.email or not payload.password:
-        return 400, {"error": "이메일과 비밀번호는 필수입니다."}
     user = AuthService.authenticate_user(payload.email, payload.password)
     if user:
         token = AuthService.create_jwt_token(user)
@@ -141,7 +138,7 @@ def update_profile(request: HttpRequest):
         return 400, {"error": str(e)}
 
 
-@router.get("/images/{role}/{user_id}", response={200: None, 404: dict, 401: dict})
+@router.get("/images/{role}/{user_id}", response={200: None, 400: dict, 404: dict, 401: dict})
 def get_profile_image(request: HttpRequest, role: str, user_id: int):
     """프로필 이미지 조회 API (DB에서 이미지 데이터 반환)"""
     from django.http import HttpResponse
@@ -151,7 +148,11 @@ def get_profile_image(request: HttpRequest, role: str, user_id: int):
         response = HttpResponse(image_data, content_type=content_type)
         return response
     except ValueError as e:
-        return 404, {"error": str(e)}
+        error_message = str(e)
+        if "Invalid role" in error_message:
+            return 400, {"error": error_message}
+        else:
+            return 404, {"error": error_message}
 
 
 @api.get(
