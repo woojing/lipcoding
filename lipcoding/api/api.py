@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import List
 
 import jwt
 from django.conf import settings
@@ -9,8 +10,16 @@ from ninja import NinjaAPI, Router
 from ninja.errors import ValidationError
 from ninja.security import HttpBearer
 
-from .models import Profile, User
-from .schemas import LoginSchema, ProfileResponseSchema, SignUpSchema, TokenSchema
+from .models import Profile, User, Skill, MatchRequest
+from .schemas import (
+    LoginSchema,
+    ProfileResponseSchema,
+    SignUpSchema,
+    TokenSchema,
+    MatchRequestCreateSchema,
+    MatchRequestResponseSchema,
+    ErrorResponseSchema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +29,13 @@ class GlobalAuth(HttpBearer):
         logger.debug(f"Attempting authentication with token: {token}")
         try:
             payload = jwt.decode(
-                token, 
-                settings.SECRET_KEY, 
-                algorithms=["HS256"], 
-                audience="lipcoding-users"
+                token,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+                audience="lipcoding-users",
             )
             logger.debug(f"Decoded JWT payload: {payload}")
-            user_id = payload.get('sub')
+            user_id = payload.get("sub")
             if not user_id:
                 logger.warning("JWT payload is missing 'sub' claim.")
                 return None
@@ -65,7 +74,6 @@ def create_jwt_token(user):
         "nbf": int(now.timestamp()),  # not before
         "iat": int(now.timestamp()),  # issued at
         "jti": str(uuid.uuid4()),  # JWT ID
-
         # 커스텀 클레임들
         "name": user.name,
         "email": user.email,
@@ -114,7 +122,10 @@ def signup(request: HttpRequest, payload: SignUpSchema):
         return 400, {"error": "Email already exists"}
 
     User.objects.create_user(
-        email=payload.email, password=payload.password, name=payload.name, role=payload.role
+        email=payload.email,
+        password=payload.password,
+        name=payload.name,
+        role=payload.role,
     )
     return 201, None
 
@@ -141,9 +152,413 @@ def get_me(request: HttpRequest):
 
     # 멘토인 경우에만 스킬 정보 포함
     if user.role == "mentor":
-        response_data["profile"]["skills"] = [skill.name for skill in profile.skills.all()]
+        response_data["profile"]["skills"] = [
+            skill.name for skill in profile.skills.all()
+        ]
 
     return 200, response_data
+
+
+@router.put("/profile", response={200: ProfileResponseSchema, 400: dict, 401: dict})
+def update_profile(request: HttpRequest):
+    """프로필 수정 API"""
+    user = request.auth
+
+    # JSON 데이터 파싱
+    try:
+        import json
+
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return 400, {"error": "Invalid JSON data"}
+
+    # 필수 필드 검증
+    if "name" not in data or "bio" not in data:
+        return 400, {"error": "Missing required fields: name, bio"}
+
+    # Profile 가져오기 또는 생성
+    profile, created = Profile.objects.get_or_create(user=user)
+
+    # 기본 프로필 정보 업데이트
+    user.name = data["name"]
+    user.save()
+
+    profile.bio = data["bio"]
+
+    # 이미지 처리 (Base64 -> 파일 저장)
+    if "image" in data and data["image"]:
+        import base64
+        from django.conf import settings
+
+        try:
+            # Base64 디코딩
+            image_data = base64.b64decode(data["image"])
+
+            # 미디어 디렉토리 생성
+            media_dir = settings.MEDIA_ROOT / "profile_images" / user.role
+            media_dir.mkdir(parents=True, exist_ok=True)
+
+            # 파일명 생성 (user_id.jpg)
+            filename = f"{user.id}.jpg"
+            filepath = media_dir / filename
+
+            # 파일 저장
+            with open(filepath, "wb") as f:
+                f.write(image_data)
+
+            # 이미지 URL 업데이트
+            profile.image_url = f"/images/{user.role}/{user.id}"
+
+        except Exception as e:
+            # 이미지 처리 실패 시 기본 이미지 URL 유지
+            logger.warning(f"Failed to process image for user {user.id}: {e}")
+            pass
+
+    # 멘토인 경우 스킬 처리
+    if user.role == "mentor":
+        if "skills" not in data:
+            return 400, {"error": "Skills are required for mentors"}
+
+        # 기존 스킬 제거
+        profile.skills.clear()
+
+        # 새로운 스킬 추가
+        for skill_name in data["skills"]:
+            skill, created = Skill.objects.get_or_create(name=skill_name)
+            profile.skills.add(skill)
+
+    profile.save()
+
+    # 응답 데이터 구성
+    response_data = {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "profile": {
+            "name": user.name,
+            "bio": profile.bio,
+            "imageUrl": profile.image_url,
+        },
+    }
+
+    # 멘토인 경우에만 스킬 정보 포함
+    if user.role == "mentor":
+        response_data["profile"]["skills"] = [
+            skill.name for skill in profile.skills.all()
+        ]
+
+    return 200, response_data
+
+
+@router.get("/images/{role}/{user_id}", response={200: None, 404: dict, 401: dict})
+def get_profile_image(request: HttpRequest, role: str, user_id: int):
+    """프로필 이미지 조회 API"""
+    from django.http import FileResponse
+    from django.conf import settings
+    import mimetypes
+
+    # 역할 검증
+    if role not in ["mentor", "mentee"]:
+        return 404, {"error": "Invalid role"}
+
+    # 이미지 파일 경로
+    filepath = settings.MEDIA_ROOT / "profile_images" / role / f"{user_id}.jpg"
+
+    # 파일 존재 여부 확인
+    if not filepath.exists():
+        return 404, {"error": "Image not found"}
+
+    # 이미지 파일 반환
+    content_type, _ = mimetypes.guess_type(str(filepath))
+    if not content_type:
+        content_type = "image/jpeg"
+
+    response = FileResponse(
+        open(filepath, "rb"), content_type=content_type, as_attachment=False
+    )
+    return response
+
+
+@api.get(
+    "/mentors",
+    response={
+        200: List[ProfileResponseSchema],
+        403: ErrorResponseSchema,
+        404: ErrorResponseSchema,
+    },
+    description="멘토 전체 리스트 조회 (멘티 전용)",
+)
+def get_mentors(request, skill: str = None, order_by: str = None):
+    """멘토 리스트 조회 - 멘티만 접근 가능"""
+    try:
+        # 멘티만 접근 가능
+        if request.auth.role != "mentee":
+            return 403, {"error": "Only mentees can view mentor list"}
+
+        # 멘토 사용자들 조회
+        mentors = (
+            User.objects.filter(role="mentor")
+            .select_related("profile")
+            .prefetch_related("profile__skills")
+        )
+
+        # 스킬 필터링
+        if skill:
+            mentors = mentors.filter(profile__skills__name__icontains=skill)
+
+        # 정렬
+        if order_by == "name":
+            mentors = mentors.order_by("name")
+        elif order_by == "skill":
+            mentors = mentors.order_by("profile__skills__name")
+        else:
+            mentors = mentors.order_by("id")
+
+        # 응답 데이터 구성
+        mentor_list = []
+        for mentor in mentors:
+            if hasattr(mentor, "profile"):
+                skills = [skill.name for skill in mentor.profile.skills.all()]
+                image_url = (
+                    f"/images/mentor/{mentor.id}" if mentor.profile.image_url else None
+                )
+
+                mentor_data = {
+                    "id": mentor.id,
+                    "email": mentor.email,
+                    "role": mentor.role,
+                    "profile": {
+                        "name": mentor.name,
+                        "bio": mentor.profile.bio,
+                        "imageUrl": image_url,
+                        "skills": skills,
+                    },
+                }
+                mentor_list.append(mentor_data)
+
+        return 200, mentor_list
+
+    except Exception as e:
+        logger.error(f"Error getting mentors: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.post(
+    "/match-requests",
+    response={
+        200: MatchRequestResponseSchema,
+        400: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+    },
+    description="매칭 요청 보내기 (멘티 전용)",
+)
+def create_match_request(request, payload: MatchRequestCreateSchema):
+    """매칭 요청 생성 - 멘티만 접근 가능"""
+    try:
+        # 멘티만 접근 가능
+        if request.auth.role != "mentee":
+            return 403, {"error": "Only mentees can create match requests"}
+
+        # 멘토 존재 확인
+        try:
+            mentor = User.objects.get(id=payload.mentorId, role="mentor")
+        except User.DoesNotExist:
+            return 400, {"error": "Mentor not found"}
+
+        # 매칭 요청 생성
+        match_request = MatchRequest.objects.create(
+            mentor=mentor,
+            mentee=request.auth,
+            message=payload.message,
+            status="pending",
+        )
+
+        return 200, {
+            "id": match_request.id,
+            "mentorId": match_request.mentor.id,
+            "menteeId": match_request.mentee.id,
+            "message": match_request.message,
+            "status": match_request.status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating match request: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.get(
+    "/match-requests/incoming",
+    response={200: List[MatchRequestResponseSchema], 403: ErrorResponseSchema},
+    description="나에게 들어온 요청 목록 (멘토 전용)",
+)
+def get_incoming_match_requests(request):
+    """들어온 매칭 요청 목록 조회 - 멘토만 접근 가능"""
+    try:
+        # 멘토만 접근 가능
+        if request.auth.role != "mentor":
+            return 403, {"error": "Only mentors can view incoming match requests"}
+
+        match_requests = MatchRequest.objects.filter(mentor=request.auth)
+
+        request_list = []
+        for req in match_requests:
+            request_data = {
+                "id": req.id,
+                "mentorId": req.mentor.id,
+                "menteeId": req.mentee.id,
+                "message": req.message,
+                "status": req.status,
+            }
+            request_list.append(request_data)
+
+        return 200, request_list
+
+    except Exception as e:
+        logger.error(f"Error getting incoming match requests: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.get(
+    "/match-requests/outgoing",
+    response={200: List[MatchRequestResponseSchema], 403: ErrorResponseSchema},
+    description="내가 보낸 요청 목록 (멘티 전용)",
+)
+def get_outgoing_match_requests(request):
+    """보낸 매칭 요청 목록 조회 - 멘티만 접근 가능"""
+    try:
+        # 멘티만 접근 가능
+        if request.auth.role != "mentee":
+            return 403, {"error": "Only mentees can view outgoing match requests"}
+
+        match_requests = MatchRequest.objects.filter(mentee=request.auth)
+
+        request_list = []
+        for req in match_requests:
+            request_data = {
+                "id": req.id,
+                "mentorId": req.mentor.id,
+                "menteeId": req.mentee.id,
+                "message": req.message,
+                "status": req.status,
+            }
+            request_list.append(request_data)
+
+        return 200, request_list
+
+    except Exception as e:
+        logger.error(f"Error getting outgoing match requests: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.put(
+    "/match-requests/{int:request_id}/accept",
+    response={
+        200: MatchRequestResponseSchema,
+        404: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+    },
+    description="요청 수락 (멘토 전용)",
+)
+def accept_match_request(request, request_id: int):
+    """매칭 요청 수락 - 멘토만 접근 가능"""
+    try:
+        # 멘토만 접근 가능
+        if request.auth.role != "mentor":
+            return 403, {"error": "Only mentors can accept match requests"}
+
+        try:
+            match_request = MatchRequest.objects.get(id=request_id, mentor=request.auth)
+        except MatchRequest.DoesNotExist:
+            return 404, {"error": "Match request not found"}
+
+        match_request.status = "accepted"
+        match_request.save()
+
+        return 200, {
+            "id": match_request.id,
+            "mentorId": match_request.mentor.id,
+            "menteeId": match_request.mentee.id,
+            "message": match_request.message,
+            "status": match_request.status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error accepting match request: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.put(
+    "/match-requests/{int:request_id}/reject",
+    response={
+        200: MatchRequestResponseSchema,
+        404: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+    },
+    description="요청 거절 (멘토 전용)",
+)
+def reject_match_request(request, request_id: int):
+    """매칭 요청 거절 - 멘토만 접근 가능"""
+    try:
+        # 멘토만 접근 가능
+        if request.auth.role != "mentor":
+            return 403, {"error": "Only mentors can reject match requests"}
+
+        try:
+            match_request = MatchRequest.objects.get(id=request_id, mentor=request.auth)
+        except MatchRequest.DoesNotExist:
+            return 404, {"error": "Match request not found"}
+
+        match_request.status = "rejected"
+        match_request.save()
+
+        return 200, {
+            "id": match_request.id,
+            "mentorId": match_request.mentor.id,
+            "menteeId": match_request.mentee.id,
+            "message": match_request.message,
+            "status": match_request.status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error rejecting match request: {e}")
+        return 500, {"error": "Internal server error"}
+
+
+@api.delete(
+    "/match-requests/{int:request_id}",
+    response={
+        200: MatchRequestResponseSchema,
+        404: ErrorResponseSchema,
+        403: ErrorResponseSchema,
+    },
+    description="요청 삭제/취소 (멘티 전용)",
+)
+def cancel_match_request(request, request_id: int):
+    """매칭 요청 취소 - 멘티만 접근 가능"""
+    try:
+        # 멘티만 접근 가능
+        if request.auth.role != "mentee":
+            return 403, {"error": "Only mentees can cancel match requests"}
+
+        try:
+            match_request = MatchRequest.objects.get(id=request_id, mentee=request.auth)
+        except MatchRequest.DoesNotExist:
+            return 404, {"error": "Match request not found"}
+
+        match_request.status = "cancelled"
+        match_request.save()
+
+        return 200, {
+            "id": match_request.id,
+            "mentorId": match_request.mentor.id,
+            "menteeId": match_request.mentee.id,
+            "message": match_request.message,
+            "status": match_request.status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error cancelling match request: {e}")
+        return 500, {"error": "Internal server error"}
 
 
 api.add_router("/", router)
