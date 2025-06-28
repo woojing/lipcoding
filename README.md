@@ -229,3 +229,283 @@ api/
 5. **확장성**: 새로운 기능 추가 시 적절한 서비스에 로직 추가 가능
 
 ---
+
+# 🎨 프론트엔드 구현 계획 (daisyUI 5 + Alpine.js)
+
+백엔드 API가 완료되어 이제 프론트엔드 웹 애플리케이션을 구현합니다. daisyUI 5와 Alpine.js를 사용하여 모던하고 반응형 UI를 구축합니다.
+
+## 🛠️ 기술 스택
+- **CSS Framework**: Tailwind CSS 4 + daisyUI 5
+- **JavaScript Framework**: Alpine.js (경량 반응형 프레임워크)
+- **HTTP Client**: Axios (API 통신용)
+- **Icons**: Heroicons 또는 Tabler Icons
+- **이미지 처리**: Base64 인코딩/디코딩
+
+## 📁 프론트엔드 구조
+```
+frontend/
+├── index.html              # 메인 페이지 (로그인/회원가입)
+├── dashboard.html          # 대시보드 (역할별 메인 화면)
+├── profile.html            # 프로필 관리 페이지
+├── mentors.html            # 멘토 리스트 페이지 (멘티 전용)
+├── requests.html           # 매칭 요청 관리 페이지
+├── assets/
+│   ├── css/
+│   │   └── main.css        # Tailwind CSS + daisyUI
+│   ├── js/
+│   │   ├── app.js          # 공통 JavaScript 로직
+│   │   ├── auth.js         # 인증 관련 로직
+│   │   ├── profile.js      # 프로필 관리 로직
+│   │   ├── mentors.js      # 멘토 검색/매칭 로직
+│   │   └── utils.js        # 유틸리티 함수
+│   └── images/
+│       └── default/        # 기본 프로필 이미지
+└── components/             # 재사용 가능한 컴포넌트
+    ├── navbar.html
+    ├── modal.html
+    └── loading.html
+```
+
+## 🎯 페이지별 구현 계획
+
+### 1. 메인 페이지 (`index.html`)
+**기능**: 로그인/회원가입 폼
+**daisyUI 컴포넌트**:
+- `card`: 로그인/회원가입 폼 컨테이너
+- `btn`: 버튼 스타일링
+- `input`: 입력 필드 스타일링
+- `alert`: 에러/성공 메시지
+- `badge`: 역할 선택 (멘토/멘티)
+
+**Alpine.js 기능**:
+```javascript
+x-data="auth()" // 인증 상태 관리
+x-show="showLogin" // 로그인/회원가입 토글
+@submit.prevent="login()" // 폼 제출 처리
+```
+
+### 2. 대시보드 (`dashboard.html`)
+**기능**: 역할별 메인 화면
+**멘토 대시보드**:
+- 받은 매칭 요청 목록
+- 프로필 편집 링크
+- 현재 매칭된 멘티 정보
+
+**멘티 대시보드**:
+- 멘토 검색/탐색
+- 보낸 요청 상태
+- 프로필 편집 링크
+
+**daisyUI 컴포넌트**:
+- `navbar`: 상단 네비게이션
+- `drawer`: 사이드바 네비게이션
+- `stats`: 통계 카드
+- `card`: 정보 카드
+- `badge`: 상태 표시
+
+### 3. 프로필 관리 (`profile.html`)
+**기능**: 프로필 정보 수정
+**daisyUI 컴포넌트**:
+- `avatar`: 프로필 이미지
+- `file-input`: 이미지 업로드
+- `textarea`: 자기소개 입력
+- `select`: 스킬 선택 (멘토용)
+- `btn-group`: 저장/취소 버튼
+
+**Alpine.js 기능**:
+```javascript
+x-data="profile()" // 프로필 상태 관리
+@change="handleImageUpload($event)" // 이미지 업로드
+x-model="profileData.bio" // 양방향 데이터 바인딩
+```
+
+### 4. 멘토 리스트 (`mentors.html`) - 멘티 전용
+**기능**: 멘토 검색 및 매칭 요청
+**daisyUI 컴포넌트**:
+- `input`: 검색 필터
+- `select`: 정렬 옵션
+- `card`: 멘토 프로필 카드
+- `modal`: 매칭 요청 모달
+- `pagination`: 페이지네이션
+
+**Alpine.js 기능**:
+```javascript
+x-data="mentorList()" // 멘토 목록 상태
+@input="filterMentors()" // 실시간 필터링
+x-for="mentor in filteredMentors" // 목록 렌더링
+```
+
+### 5. 매칭 요청 관리 (`requests.html`)
+**기능**: 받은/보낸 요청 관리
+**daisyUI 컴포넌트**:
+- `tabs`: 받은 요청/보낸 요청 탭
+- `table`: 요청 목록 테이블
+- `btn`: 수락/거절/취소 버튼
+- `timeline`: 요청 상태 타임라인
+
+**Alpine.js 기능**:
+```javascript
+x-data="matchRequests()" // 요청 상태 관리
+@click="acceptRequest(requestId)" // 요청 처리
+x-show="activeTab === 'incoming'" // 탭 전환
+```
+
+## 🎨 UI/UX 디자인 가이드
+
+### 색상 테마
+- **Primary**: 브랜드 색상 (멘토링 관련)
+- **Secondary**: 보조 색상
+- **Success**: 매칭 성공, 요청 수락
+- **Warning**: 대기 중인 상태
+- **Error**: 거절, 에러 상태
+
+### 반응형 디자인
+```css
+/* Mobile First 접근 */
+@media (sm: 640px) { /* 태블릿 */ }
+@media (lg: 1024px) { /* 데스크톱 */ }
+```
+
+### 컴포넌트 스타일 예시
+```html
+<!-- 멘토 카드 -->
+<div class="card card-border bg-base-100 shadow-lg">
+  <figure class="px-6 pt-6">
+    <div class="avatar">
+      <div class="w-20 h-20 rounded-full">
+        <img src="/api/images/mentor/1" alt="멘토 프로필" />
+      </div>
+    </div>
+  </figure>
+  <div class="card-body">
+    <h2 class="card-title">멘토 이름</h2>
+    <p class="text-base-content/70">자기소개...</p>
+    <div class="flex flex-wrap gap-2 mt-2">
+      <span class="badge badge-primary">React</span>
+      <span class="badge badge-secondary">Vue</span>
+    </div>
+    <div class="card-actions justify-end mt-4">
+      <button class="btn btn-primary">매칭 요청</button>
+    </div>
+  </div>
+</div>
+```
+
+## 🔧 공통 JavaScript 로직
+
+### 1. API 통신 (`utils.js`)
+```javascript
+// JWT 토큰 관리
+const token = localStorage.getItem('jwt_token');
+
+// API 기본 설정
+axios.defaults.baseURL = 'http://localhost:8080/api';
+axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+// 에러 처리
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('jwt_token');
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+### 2. 이미지 처리
+```javascript
+// Base64 인코딩
+function encodeImageToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+
+// 이미지 미리보기
+function previewImage(input, previewElement) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewElement.src = e.target.result;
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+```
+
+### 3. 알림 시스템
+```javascript
+// Toast 알림
+function showToast(message, type = 'info') {
+  const alertClass = `alert-${type}`;
+  // daisyUI alert 컴포넌트 동적 생성
+}
+```
+
+## 📱 반응형 및 접근성
+
+### 모바일 최적화
+- `drawer` 컴포넌트로 모바일 네비게이션
+- 터치 친화적 버튼 크기 (`btn-lg`)
+- 스와이프 제스처 지원
+
+### 접근성 (a11y)
+- ARIA 레이블 추가
+- 키보드 네비게이션 지원
+- 스크린 리더 호환성
+- 충분한 색상 대비율
+
+## 🚀 구현 단계
+
+### Phase 1: 기본 구조 및 인증
+1. HTML 기본 구조 생성
+2. Tailwind CSS 4 + daisyUI 5 설정
+3. Alpine.js 설정
+4. 로그인/회원가입 페이지 구현
+
+### Phase 2: 프로필 관리
+1. 프로필 조회/수정 페이지
+2. 이미지 업로드 기능
+3. 스킬 관리 (멘토용)
+
+### Phase 3: 멘토 검색 및 매칭
+1. 멘토 리스트 페이지
+2. 검색/필터링 기능
+3. 매칭 요청 기능
+
+### Phase 4: 요청 관리 및 대시보드
+1. 매칭 요청 관리 페이지
+2. 대시보드 완성
+3. 전체 기능 테스트
+
+### Phase 5: UI/UX 최적화
+1. 반응형 디자인 완성
+2. 로딩 상태 및 에러 처리
+3. 성능 최적화
+4. 접근성 개선
+
+## 📋 구현 체크리스트
+
+### 필수 기능
+- [ ] 로그인/회원가입 폼
+- [ ] JWT 토큰 관리
+- [ ] 프로필 조회/수정
+- [ ] 이미지 업로드/미리보기
+- [ ] 멘토 검색/필터링
+- [ ] 매칭 요청 생성/관리
+- [ ] 요청 상태 업데이트
+- [ ] 에러 처리 및 알림
+
+### 추가 기능
+- [ ] 다크/라이트 테마 토글
+- [ ] 실시간 알림 (WebSocket)
+- [ ] 오프라인 지원 (Service Worker)
+- [ ] PWA 기능
+
+---
+

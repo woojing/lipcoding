@@ -1,0 +1,303 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}대시보드 | 멘토-멘티 매칭 시스템{% endblock %}
+
+{% block navbar %}
+<div class="navbar bg-base-100 shadow-lg">
+    <div class="navbar-start">
+        <div class="dropdown lg:hidden">
+            <div tabindex="0" role="button" class="btn btn-ghost">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li><a href="/dashboard/">대시보드</a></li>
+                <li><a href="/profile/">프로필</a></li>
+                <li x-show="userRole === 'mentee'"><a href="/mentors/">멘토 찾기</a></li>
+                <li><a href="/requests/">매칭 요청</a></li>
+            </ul>
+        </div>
+        <a class="btn btn-ghost text-xl" href="/dashboard/">
+            <span class="text-primary">💡</span>
+            멘토링 매칭
+        </a>
+    </div>
+    
+    <div class="navbar-center hidden lg:flex">
+        <ul class="menu menu-horizontal px-1">
+            <li><a href="/dashboard/" class="btn btn-ghost">대시보드</a></li>
+            <li><a href="/profile/" class="btn btn-ghost">프로필</a></li>
+            <li x-show="userRole === 'mentee'"><a href="/mentors/" class="btn btn-ghost">멘토 찾기</a></li>
+            <li><a href="/requests/" class="btn btn-ghost">매칭 요청</a></li>
+        </ul>
+    </div>
+    
+    <div class="navbar-end">
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                <div class="w-10 rounded-full">
+                    <img x-bind:src="userImage" x-bind:alt="userName + ' 프로필'" />
+                </div>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li class="menu-title">
+                    <span x-text="userName"></span>
+                    <span class="badge badge-primary badge-sm" x-text="userRole === 'mentor' ? '멘토' : '멘티'"></span>
+                </li>
+                <li><a href="/profile/">프로필 편집</a></li>
+                <li><a @click="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="dashboardPage()">
+    <!-- 사용자 환영 메시지 -->
+    <div class="hero bg-gradient-to-r from-primary to-secondary text-primary-content rounded-lg mb-8">
+        <div class="hero-content text-center">
+            <div class="max-w-md">
+                <h1 class="text-4xl font-bold mb-4">
+                    안녕하세요, <span x-text="userName"></span>님!
+                </h1>
+                <p class="text-lg" x-text="userRole === 'mentor' ? '오늘도 멘티들에게 도움을 주세요.' : '새로운 멘토를 찾아보세요.'"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 통계 카드 -->
+    <div class="stats stats-vertical lg:stats-horizontal shadow mb-8 w-full">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+            <div class="stat-title" x-text="userRole === 'mentor' ? '받은 요청' : '보낸 요청'"></div>
+            <div class="stat-value text-primary" x-text="stats.totalRequests"></div>
+            <div class="stat-desc">지금까지</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-secondary">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="stat-title">수락된 요청</div>
+            <div class="stat-value text-secondary" x-text="stats.acceptedRequests"></div>
+            <div class="stat-desc">활성 매칭</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-accent">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="stat-title">대기 중</div>
+            <div class="stat-value text-accent" x-text="stats.pendingRequests"></div>
+            <div class="stat-desc">답변 대기</div>
+        </div>
+    </div>
+
+    <!-- 역할별 메인 콘텐츠 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- 멘토 대시보드 -->
+        <template x-if="userRole === 'mentor'">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        받은 매칭 요청
+                    </h2>
+                    
+                    <div class="space-y-4" x-show="recentRequests.length > 0">
+                        <template x-for="request in recentRequests" :key="request.id">
+                            <div class="card bg-base-200 compact">
+                                <div class="card-body">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-semibold" x-text="request.menteeName"></h3>
+                                            <p class="text-sm text-base-content/70" x-text="request.message"></p>
+                                            <p class="text-xs text-base-content/50" x-text="request.createdAt"></p>
+                                        </div>
+                                        <div class="badge" 
+                                             :class="{
+                                                 'badge-warning': request.status === 'pending',
+                                                 'badge-success': request.status === 'accepted',
+                                                 'badge-error': request.status === 'rejected'
+                                             }"
+                                             x-text="getStatusText(request.status)">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div x-show="recentRequests.length === 0" class="text-center py-8 text-base-content/50">
+                        <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        <p>아직 받은 매칭 요청이 없습니다.</p>
+                    </div>
+                    
+                    <div class="card-actions justify-end">
+                        <a href="/requests/" class="btn btn-primary">모든 요청 보기</a>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- 멘티 대시보드 -->
+        <template x-if="userRole === 'mentee'">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        멘토 찾기
+                    </h2>
+                    <p class="text-base-content/70">새로운 멘토를 찾아 성장의 기회를 만들어보세요.</p>
+                    
+                    <div class="card-actions justify-end">
+                        <a href="/mentors/" class="btn btn-primary">멘토 둘러보기</a>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- 프로필 상태 카드 -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    프로필 관리
+                </h2>
+                <p class="text-base-content/70">프로필 정보를 최신 상태로 유지하세요.</p>
+                
+                <div class="flex items-center space-x-4 my-4">
+                    <div class="avatar">
+                        <div class="w-16 h-16 rounded-full">
+                            <img x-bind:src="userImage" x-bind:alt="userName + ' 프로필'" />
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold" x-text="userName"></h3>
+                        <p class="text-sm text-base-content/70" x-text="userEmail"></p>
+                        <div class="badge badge-primary mt-1" x-text="userRole === 'mentor' ? '멘토' : '멘티'"></div>
+                    </div>
+                </div>
+                
+                <div class="card-actions justify-end">
+                    <a href="/profile/" class="btn btn-outline">프로필 편집</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function dashboardPage() {
+    return {
+        userName: '',
+        userEmail: '',
+        userRole: '',
+        userImage: 'https://placehold.co/500x500.jpg?text=USER',
+        stats: {
+            totalRequests: 0,
+            acceptedRequests: 0,
+            pendingRequests: 0
+        },
+        recentRequests: [],
+        
+        async init() {
+            await this.loadUserProfile();
+            await this.loadStats();
+            if (this.userRole === 'mentor') {
+                await this.loadRecentRequests();
+            }
+        },
+        
+        async loadUserProfile() {
+            try {
+                const response = await axios.get('/me');
+                const user = response.data;
+                
+                this.userName = user.profile.name;
+                this.userEmail = user.email;
+                this.userRole = user.role;
+                this.userImage = `http://localhost:8080/api/images/${user.role}/${user.id}`;
+                
+            } catch (error) {
+                console.error('Failed to load user profile:', error);
+                showToast('사용자 정보를 불러올 수 없습니다.', 'error');
+            }
+        },
+        
+        async loadStats() {
+            try {
+                const endpoint = this.userRole === 'mentor' ? '/match-requests/incoming' : '/match-requests/outgoing';
+                const response = await axios.get(endpoint);
+                const requests = response.data;
+                
+                this.stats.totalRequests = requests.length;
+                this.stats.acceptedRequests = requests.filter(r => r.status === 'accepted').length;
+                this.stats.pendingRequests = requests.filter(r => r.status === 'pending').length;
+                
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        },
+        
+        async loadRecentRequests() {
+            try {
+                const response = await axios.get('/match-requests/incoming');
+                this.recentRequests = response.data.slice(0, 3).map(request => ({
+                    ...request,
+                    menteeName: `멘티 ${request.menteeId}`,
+                    createdAt: '방금 전'
+                }));
+                
+            } catch (error) {
+                console.error('Failed to load recent requests:', error);
+            }
+        },
+        
+        getStatusText(status) {
+            const statusMap = {
+                'pending': '대기중',
+                'accepted': '수락됨',
+                'rejected': '거절됨',
+                'cancelled': '취소됨'
+            };
+            return statusMap[status] || status;
+        },
+        
+        logout() {
+            localStorage.removeItem('jwt_token');
+            delete axios.defaults.headers.common['Authorization'];
+            window.location.href = '/';
+        }
+    }
+}
+
+// 페이지 로드 시 토큰 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        window.location.href = '/';
+    }
+});
+</script>
+{% endblock %}

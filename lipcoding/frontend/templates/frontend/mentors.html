@@ -1,0 +1,416 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}멘토 찾기 | 멘토-멘티 매칭 시스템{% endblock %}
+
+{% block navbar %}
+<div class="navbar bg-base-100 shadow-lg">
+    <div class="navbar-start">
+        <div class="dropdown lg:hidden">
+            <div tabindex="0" role="button" class="btn btn-ghost">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li><a href="/dashboard/">대시보드</a></li>
+                <li><a href="/profile/">프로필</a></li>
+                <li><a href="/mentors/">멘토 찾기</a></li>
+                <li><a href="/requests/">매칭 요청</a></li>
+            </ul>
+        </div>
+        <a class="btn btn-ghost text-xl" href="/dashboard/">
+            <span class="text-primary">💡</span>
+            멘토링 매칭
+        </a>
+    </div>
+    
+    <div class="navbar-center hidden lg:flex">
+        <ul class="menu menu-horizontal px-1">
+            <li><a href="/dashboard/" class="btn btn-ghost">대시보드</a></li>
+            <li><a href="/profile/" class="btn btn-ghost">프로필</a></li>
+            <li><a href="/mentors/" class="btn btn-ghost btn-active">멘토 찾기</a></li>
+            <li><a href="/requests/" class="btn btn-ghost">매칭 요청</a></li>
+        </ul>
+    </div>
+    
+    <div class="navbar-end">
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                <div class="w-10 rounded-full">
+                    <img x-bind:src="userImage" x-bind:alt="userName + ' 프로필'" />
+                </div>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li class="menu-title">
+                    <span x-text="userName"></span>
+                    <span class="badge badge-primary badge-sm">멘티</span>
+                </li>
+                <li><a href="/profile/">프로필 편집</a></li>
+                <li><a @click="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="mentorsPage()">
+    <!-- 페이지 헤더 -->
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">멘토 찾기</h1>
+        <a href="/dashboard/" class="btn btn-outline">대시보드로 돌아가기</a>
+    </div>
+    
+    <!-- 검색 및 필터 섹션 -->
+    <div class="card bg-base-100 shadow-xl mb-8">
+        <div class="card-body">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- 기술 스택 검색 -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">기술 스택으로 검색</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="search"
+                        placeholder="React, Vue, Node.js 등" 
+                        class="input input-bordered"
+                        x-model="searchSkill"
+                        @input="searchMentors()"
+                    />
+                </div>
+                
+                <!-- 정렬 기준 -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">정렬 기준</span>
+                    </label>
+                    <select 
+                        class="select select-bordered"
+                        x-model="sortBy"
+                        @change="sortMentors()"
+                    >
+                        <option value="">기본 정렬</option>
+                        <option value="name" id="name">이름순</option>
+                        <option value="skill" id="skill">기술 스택순</option>
+                    </select>
+                </div>
+                
+                <!-- 검색 버튼 -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">&nbsp;</span>
+                    </label>
+                    <button 
+                        class="btn btn-primary"
+                        @click="loadMentors()"
+                        :disabled="loading"
+                    >
+                        <span x-show="loading" class="loading loading-spinner loading-xs"></span>
+                        <span x-text="loading ? '검색 중...' : '검색'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 멘토 목록 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-for="mentor in filteredMentors" :key="mentor.id">
+            <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow mentor">
+                <figure class="px-6 pt-6">
+                    <div class="avatar">
+                        <div class="w-24 h-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                            <img 
+                                x-bind:src="`http://localhost:8080/api/images/mentor/${mentor.id}`" 
+                                x-bind:alt="mentor.profile.name + ' 프로필'"
+                                onerror="this.src='https://placehold.co/500x500.jpg?text=MENTOR'"
+                            />
+                        </div>
+                    </div>
+                </figure>
+                
+                <div class="card-body items-center text-center">
+                    <h2 class="card-title" x-text="mentor.profile.name"></h2>
+                    <p class="text-base-content/70 text-sm" x-text="mentor.profile.bio || '자기소개가 없습니다.'"></p>
+                    
+                    <!-- 기술 스택 -->
+                    <div class="flex flex-wrap gap-1 mt-2">
+                        <template x-for="skill in (mentor.profile.skills || [])" :key="skill">
+                            <div class="badge badge-primary badge-sm" x-text="skill"></div>
+                        </template>
+                        <div x-show="!mentor.profile.skills || mentor.profile.skills.length === 0" class="text-xs text-base-content/50">
+                            기술 스택 정보 없음
+                        </div>
+                    </div>
+                    
+                    <div class="card-actions justify-end mt-4">
+                        <button 
+                            class="btn btn-primary btn-sm"
+                            @click="openMatchModal(mentor)"
+                            :disabled="hasActiveRequest"
+                        >
+                            매칭 요청
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- 빈 상태 -->
+        <div x-show="filteredMentors.length === 0 && !loading" class="col-span-full text-center py-12">
+            <svg class="w-16 h-16 mx-auto mb-4 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <h3 class="text-xl font-semibold mb-2">검색 결과가 없습니다</h3>
+            <p class="text-base-content/70">다른 기술 스택으로 검색해보세요.</p>
+        </div>
+        
+        <!-- 로딩 상태 -->
+        <div x-show="loading" class="col-span-full text-center py-12">
+            <span class="loading loading-spinner loading-lg"></span>
+            <p class="mt-4">멘토를 검색 중입니다...</p>
+        </div>
+    </div>
+    
+    <!-- 매칭 요청 모달 -->
+    <dialog class="modal" x-bind:class="{'modal-open': showMatchModal}">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">매칭 요청 보내기</h3>
+            
+            <template x-if="selectedMentor">
+                <div class="py-4">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="avatar">
+                            <div class="w-16 h-16 rounded-full">
+                                <img 
+                                    x-bind:src="`http://localhost:8080/api/images/mentor/${selectedMentor.id}`" 
+                                    x-bind:alt="selectedMentor.profile.name + ' 프로필'"
+                                    onerror="this.src='https://placehold.co/500x500.jpg?text=MENTOR'"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold" x-text="selectedMentor.profile.name"></h4>
+                            <p class="text-sm text-base-content/70" x-text="selectedMentor.profile.bio"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">매칭 요청 메시지</span>
+                        </label>
+                        <textarea 
+                            class="textarea textarea-bordered h-24" 
+                            placeholder="멘토에게 보낼 메시지를 입력하세요"
+                            x-model="matchMessage"
+                            :id="`message`"
+                            :data-mentor-id="selectedMentor ? selectedMentor.id : ''"
+                            :data-testid="`message-${selectedMentor ? selectedMentor.id : ''}`"
+                        ></textarea>
+                    </div>
+                </div>
+            </template>
+            
+            <div class="modal-action">
+                <button 
+                    class="btn btn-primary" 
+                    id="request"
+                    @click="sendMatchRequest()"
+                    :disabled="matchRequestLoading || !matchMessage.trim()"
+                >
+                    <span x-show="matchRequestLoading" class="loading loading-spinner loading-xs"></span>
+                    <span x-text="matchRequestLoading ? '요청 중...' : '요청 보내기'"></span>
+                </button>
+                <button class="btn" @click="closeMatchModal()">취소</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop" @click="closeMatchModal()">
+            <button>close</button>
+        </form>
+    </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function mentorsPage() {
+    return {
+        mentors: [],
+        filteredMentors: [],
+        loading: false,
+        searchSkill: '',
+        sortBy: '',
+        showMatchModal: false,
+        selectedMentor: null,
+        matchMessage: '',
+        matchRequestLoading: false,
+        hasActiveRequest: false,
+        userName: '',
+        userImage: 'https://placehold.co/500x500.jpg?text=USER',
+        
+        async init() {
+            await this.loadUserInfo();
+            await this.loadMentors();
+            await this.checkActiveRequests();
+        },
+        
+        async loadUserInfo() {
+            try {
+                const response = await axios.get('/me');
+                const user = response.data;
+                this.userName = user.profile.name;
+                this.userImage = `http://localhost:8080/api/images/${user.role}/${user.id}`;
+            } catch (error) {
+                console.error('Failed to load user info:', error);
+            }
+        },
+        
+        async loadMentors() {
+            this.loading = true;
+            try {
+                let url = '/mentors';
+                const params = new URLSearchParams();
+                
+                if (this.searchSkill.trim()) {
+                    params.append('skill', this.searchSkill.trim());
+                }
+                
+                if (this.sortBy) {
+                    params.append('order_by', this.sortBy);
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
+                const response = await axios.get(url);
+                this.mentors = response.data;
+                this.filteredMentors = [...this.mentors];
+                
+            } catch (error) {
+                console.error('Failed to load mentors:', error);
+                showToast('멘토 목록을 불러올 수 없습니다.', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async checkActiveRequests() {
+            try {
+                const response = await axios.get('/match-requests/outgoing');
+                const requests = response.data;
+                
+                // 대기 중인 요청이 있는지 확인
+                this.hasActiveRequest = requests.some(request => request.status === 'pending');
+                
+            } catch (error) {
+                console.error('Failed to check active requests:', error);
+            }
+        },
+        
+        searchMentors() {
+            if (!this.searchSkill.trim()) {
+                this.filteredMentors = [...this.mentors];
+                return;
+            }
+            
+            const keyword = this.searchSkill.toLowerCase();
+            this.filteredMentors = this.mentors.filter(mentor => 
+                mentor.profile.skills && 
+                mentor.profile.skills.some(skill => 
+                    skill.toLowerCase().includes(keyword)
+                )
+            );
+        },
+        
+        sortMentors() {
+            if (!this.sortBy) {
+                this.filteredMentors = [...this.mentors];
+                return;
+            }
+            
+            this.filteredMentors.sort((a, b) => {
+                if (this.sortBy === 'name') {
+                    return a.profile.name.localeCompare(b.profile.name);
+                } else if (this.sortBy === 'skill') {
+                    const aSkills = a.profile.skills ? a.profile.skills.join(', ') : '';
+                    const bSkills = b.profile.skills ? b.profile.skills.join(', ') : '';
+                    return aSkills.localeCompare(bSkills);
+                }
+                return 0;
+            });
+        },
+        
+        openMatchModal(mentor) {
+            if (this.hasActiveRequest) {
+                showToast('이미 대기 중인 매칭 요청이 있습니다.', 'warning');
+                return;
+            }
+            
+            this.selectedMentor = mentor;
+            this.matchMessage = '';
+            this.showMatchModal = true;
+        },
+        
+        closeMatchModal() {
+            this.showMatchModal = false;
+            this.selectedMentor = null;
+            this.matchMessage = '';
+        },
+        
+        async sendMatchRequest() {
+            if (!this.matchMessage.trim()) {
+                showToast('메시지를 입력해주세요.', 'warning');
+                return;
+            }
+            
+            this.matchRequestLoading = true;
+            
+            try {
+                // 내 정보 가져오기
+                const userResponse = await axios.get('/me');
+                const menteeId = userResponse.data.id;
+                
+                const requestData = {
+                    mentorId: this.selectedMentor.id,
+                    menteeId: menteeId,
+                    message: this.matchMessage.trim()
+                };
+                
+                await axios.post('/match-requests', requestData);
+                
+                showToast('매칭 요청이 성공적으로 전송되었습니다!', 'success');
+                this.closeMatchModal();
+                
+                // 활성 요청 상태 업데이트
+                this.hasActiveRequest = true;
+                
+            } catch (error) {
+                console.error('Match request error:', error);
+                showToast(
+                    error.response?.data?.error || '매칭 요청 전송에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.matchRequestLoading = false;
+            }
+        },
+        
+        logout() {
+            localStorage.removeItem('jwt_token');
+            delete axios.defaults.headers.common['Authorization'];
+            window.location.href = '/';
+        }
+    }
+}
+
+// 페이지 로드 시 토큰 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        window.location.href = '/';
+    }
+});
+</script>
+{% endblock %}

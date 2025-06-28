@@ -1,0 +1,256 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}로그인 | 멘토-멘티 매칭 시스템{% endblock %}
+
+{% block content %}
+<div class="hero min-h-screen hero-gradient" x-data="authPage()">
+    <div class="hero-content flex-col lg:flex-row-reverse">
+        <!-- 왼쪽: 소개 텍스트 -->
+        <div class="text-center lg:text-left text-white lg:ml-12">
+            <h1 class="text-5xl font-bold mb-4">멘토-멘티 매칭</h1>
+            <p class="text-xl mb-6">전문가와 학습자를 연결하는 플랫폼</p>
+            <ul class="text-lg space-y-2">
+                <li>✨ 전문 멘토와의 1:1 매칭</li>
+                <li>🚀 개인 맞춤형 학습 경험</li>
+                <li>💡 실무 중심의 멘토링</li>
+                <li>🎯 목표 달성까지 체계적 관리</li>
+            </ul>
+        </div>
+
+        <!-- 오른쪽: 로그인/회원가입 폼 -->
+        <div class="card w-full max-w-md bg-base-100 shadow-2xl">
+            <div class="card-body">
+                <!-- 탭 헤더 -->
+                <div class="tabs tabs-boxed mb-6">
+                    <button 
+                        class="tab flex-1" 
+                        :class="{'tab-active': activeTab === 'login'}"
+                        @click="activeTab = 'login'"
+                    >
+                        로그인
+                    </button>
+                    <button 
+                        class="tab flex-1" 
+                        :class="{'tab-active': activeTab === 'signup'}"
+                        @click="activeTab = 'signup'"
+                    >
+                        회원가입
+                    </button>
+                </div>
+
+                <!-- 로그인 폼 -->
+                <form x-show="activeTab === 'login'" @submit.prevent="login()" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">이메일</span>
+                        </label>
+                        <input 
+                            type="email" 
+                            id="email"
+                            placeholder="example@email.com" 
+                            class="input input-bordered"
+                            x-model="loginForm.email"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">비밀번호</span>
+                        </label>
+                        <input 
+                            type="password" 
+                            id="password"
+                            placeholder="비밀번호를 입력하세요" 
+                            class="input input-bordered"
+                            x-model="loginForm.password"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="form-control mt-6">
+                        <button 
+                            class="btn btn-primary" 
+                            id="login"
+                            type="submit"
+                            :disabled="loading"
+                        >
+                            <span x-show="loading" class="loading loading-spinner loading-xs"></span>
+                            <span x-text="loading ? '로그인 중...' : '로그인'"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- 회원가입 폼 -->
+                <form x-show="activeTab === 'signup'" @submit.prevent="signup()" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">이메일</span>
+                        </label>
+                        <input 
+                            type="email" 
+                            id="email"
+                            placeholder="example@email.com" 
+                            class="input input-bordered"
+                            x-model="signupForm.email"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">이름</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            placeholder="이름을 입력하세요" 
+                            class="input input-bordered"
+                            x-model="signupForm.name"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">비밀번호</span>
+                        </label>
+                        <input 
+                            type="password" 
+                            id="password"
+                            placeholder="6자 이상 입력하세요" 
+                            class="input input-bordered"
+                            x-model="signupForm.password"
+                            minlength="6"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">역할 선택</span>
+                        </label>
+                        <div class="join">
+                            <input 
+                                class="join-item btn" 
+                                type="radio" 
+                                id="role"
+                                name="role" 
+                                value="mentor"
+                                x-model="signupForm.role"
+                                aria-label="멘토"
+                            />
+                            <input 
+                                class="join-item btn" 
+                                type="radio" 
+                                name="role" 
+                                value="mentee"
+                                x-model="signupForm.role"
+                                aria-label="멘티"
+                            />
+                        </div>
+                    </div>
+                    
+                    <div class="form-control mt-6">
+                        <button 
+                            class="btn btn-primary" 
+                            id="signup"
+                            type="submit"
+                            :disabled="loading"
+                        >
+                            <span x-show="loading" class="loading loading-spinner loading-xs"></span>
+                            <span x-text="loading ? '가입 중...' : '회원가입'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function authPage() {
+    return {
+        activeTab: 'login',
+        loading: false,
+        loginForm: {
+            email: '',
+            password: ''
+        },
+        signupForm: {
+            email: '',
+            name: '',
+            password: '',
+            role: 'mentee'
+        },
+        
+        async login() {
+            this.loading = true;
+            try {
+                const response = await axios.post('/login', this.loginForm);
+                
+                // JWT 토큰 저장
+                localStorage.setItem('jwt_token', response.data.token);
+                axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+                
+                showToast('로그인에 성공했습니다!', 'success');
+                
+                // 대시보드로 이동
+                setTimeout(() => {
+                    window.location.href = '/dashboard/';
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showToast(
+                    error.response?.data?.error || '로그인에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async signup() {
+            this.loading = true;
+            try {
+                await axios.post('/signup', this.signupForm);
+                
+                showToast('회원가입에 성공했습니다! 로그인해주세요.', 'success');
+                
+                // 로그인 탭으로 전환
+                this.activeTab = 'login';
+                this.loginForm.email = this.signupForm.email;
+                
+                // 폼 초기화
+                this.signupForm = {
+                    email: '',
+                    name: '',
+                    password: '',
+                    role: 'mentee'
+                };
+                
+            } catch (error) {
+                console.error('Signup error:', error);
+                showToast(
+                    error.response?.data?.error || '회원가입에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}
+
+// 페이지 로드 시 토큰 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+        // 이미 로그인된 상태면 대시보드로 이동
+        window.location.href = '/dashboard/';
+    }
+});
+</script>
+{% endblock %}

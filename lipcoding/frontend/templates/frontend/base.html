@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}멘토-멘티 매칭 시스템{% endblock %}</title>
+    
+    <!-- Tailwind CSS 4 + daisyUI 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    
+    <!-- Alpine.js CDN -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <!-- Heroicons -->
+    <script src="https://unpkg.com/heroicons@2.0.18/24/outline/index.js"></script>
+    
+    <style>
+        /* Custom CSS if needed */
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-base-100">
+    <!-- Navigation -->
+    {% block navbar %}{% endblock %}
+    
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast toast-top toast-end"></div>
+    
+    <!-- Global JavaScript -->
+    <script>
+        // API 기본 설정
+        axios.defaults.baseURL = 'http://localhost:8080/api';
+        
+        // JWT 토큰 관리
+        const token = localStorage.getItem('jwt_token');
+        if (token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+        
+        // 전역 에러 처리
+        axios.interceptors.response.use(
+            response => response,
+            error => {
+                if (error.response?.status === 401) {
+                    localStorage.removeItem('jwt_token');
+                    window.location.href = '/';
+                }
+                return Promise.reject(error);
+            }
+        );
+        
+        // Toast 알림 함수
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} mb-2`;
+            toast.innerHTML = `
+                <span>${message}</span>
+                <button class="btn btn-sm btn-ghost" onclick="this.parentElement.remove()">✕</button>
+            `;
+            toastContainer.appendChild(toast);
+            
+            // 5초 후 자동 제거
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+        
+        // Base64 이미지 인코딩
+        function encodeImageToBase64(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // 이미지 미리보기
+        function previewImage(input, previewElement) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewElement.src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

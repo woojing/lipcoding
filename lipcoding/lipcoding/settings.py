@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "django_extensions",  # 개발 편의 도구
     "ninja",  # Django Ninja 프레임워크
     "api",  # API 앱
+    "frontend",  # Frontend 앱
 ]
 
 MIDDLEWARE = [

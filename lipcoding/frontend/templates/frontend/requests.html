@@ -1,0 +1,400 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}매칭 요청 | 멘토-멘티 매칭 시스템{% endblock %}
+
+{% block navbar %}
+<div class="navbar bg-base-100 shadow-lg">
+    <div class="navbar-start">
+        <div class="dropdown lg:hidden">
+            <div tabindex="0" role="button" class="btn btn-ghost">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li><a href="/dashboard/">대시보드</a></li>
+                <li><a href="/profile/">프로필</a></li>
+                <li x-show="userRole === 'mentee'"><a href="/mentors/">멘토 찾기</a></li>
+                <li><a href="/requests/">매칭 요청</a></li>
+            </ul>
+        </div>
+        <a class="btn btn-ghost text-xl" href="/dashboard/">
+            <span class="text-primary">💡</span>
+            멘토링 매칭
+        </a>
+    </div>
+    
+    <div class="navbar-center hidden lg:flex">
+        <ul class="menu menu-horizontal px-1">
+            <li><a href="/dashboard/" class="btn btn-ghost">대시보드</a></li>
+            <li><a href="/profile/" class="btn btn-ghost">프로필</a></li>
+            <li x-show="userRole === 'mentee'"><a href="/mentors/" class="btn btn-ghost">멘토 찾기</a></li>
+            <li><a href="/requests/" class="btn btn-ghost btn-active">매칭 요청</a></li>
+        </ul>
+    </div>
+    
+    <div class="navbar-end">
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                <div class="w-10 rounded-full">
+                    <img x-bind:src="userImage" x-bind:alt="userName + ' 프로필'" />
+                </div>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li class="menu-title">
+                    <span x-text="userName"></span>
+                    <span class="badge badge-primary badge-sm" x-text="userRole === 'mentor' ? '멘토' : '멘티'"></span>
+                </li>
+                <li><a href="/profile/">프로필 편집</a></li>
+                <li><a @click="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="requestsPage()">
+    <!-- 페이지 헤더 -->
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">매칭 요청 관리</h1>
+        <a href="/dashboard/" class="btn btn-outline">대시보드로 돌아가기</a>
+    </div>
+    
+    <!-- 탭 네비게이션 -->
+    <div class="tabs tabs-lifted mb-8">
+        <!-- 멘토용 탭 -->
+        <template x-if="userRole === 'mentor'">
+            <button 
+                class="tab tab-active"
+            >
+                받은 요청
+            </button>
+        </template>
+        
+        <!-- 멘티용 탭 -->
+        <template x-if="userRole === 'mentee'">
+            <button 
+                class="tab tab-active"
+            >
+                보낸 요청
+            </button>
+        </template>
+    </div>
+    
+    <!-- 멘토: 받은 요청 목록 -->
+    <template x-if="userRole === 'mentor'">
+        <div class="space-y-6">
+            <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6">
+                <div class="stat">
+                    <div class="stat-title">전체 요청</div>
+                    <div class="stat-value text-primary" x-text="incomingRequests.length"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">대기 중</div>
+                    <div class="stat-value text-warning" x-text="getRequestCountByStatus('pending')"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">수락됨</div>
+                    <div class="stat-value text-success" x-text="getRequestCountByStatus('accepted')"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">거절됨</div>
+                    <div class="stat-value text-error" x-text="getRequestCountByStatus('rejected')"></div>
+                </div>
+            </div>
+            
+            <!-- 요청 카드들 -->
+            <template x-for="request in incomingRequests" :key="request.id">
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-start space-x-4 flex-1">
+                                <div class="avatar">
+                                    <div class="w-16 h-16 rounded-full">
+                                        <img 
+                                            x-bind:src="`http://localhost:8080/api/images/mentee/${request.menteeId}`" 
+                                            x-bind:alt="`멘티 ${request.menteeId} 프로필`"
+                                            onerror="this.src='https://placehold.co/500x500.jpg?text=MENTEE'"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="card-title">멘티 #<span x-text="request.menteeId"></span></h3>
+                                    <p class="text-base-content/70 request-message" 
+                                       x-bind:mentee="request.menteeId" 
+                                       x-text="request.message">
+                                    </p>
+                                    <p class="text-xs text-base-content/50 mt-2">요청 ID: <span x-text="request.id"></span></p>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end space-y-2">
+                                <div class="badge" 
+                                     :class="{
+                                         'badge-warning': request.status === 'pending',
+                                         'badge-success': request.status === 'accepted',
+                                         'badge-error': request.status === 'rejected',
+                                         'badge-ghost': request.status === 'cancelled'
+                                     }"
+                                     x-text="getStatusText(request.status)">
+                                </div>
+                                
+                                <!-- 대기 중인 요청에만 액션 버튼 표시 -->
+                                <div x-show="request.status === 'pending'" class="space-x-2">
+                                    <button 
+                                        class="btn btn-success btn-sm"
+                                        id="accept"
+                                        @click="acceptRequest(request.id)"
+                                        :disabled="actionLoading"
+                                    >
+                                        수락
+                                    </button>
+                                    <button 
+                                        class="btn btn-error btn-sm"
+                                        id="reject"
+                                        @click="rejectRequest(request.id)"
+                                        :disabled="actionLoading"
+                                    >
+                                        거절
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- 빈 상태 -->
+            <div x-show="incomingRequests.length === 0 && !loading" class="text-center py-12">
+                <svg class="w-16 h-16 mx-auto mb-4 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                </svg>
+                <h3 class="text-xl font-semibold mb-2">받은 요청이 없습니다</h3>
+                <p class="text-base-content/70">멘티들의 매칭 요청을 기다리고 있습니다.</p>
+            </div>
+        </div>
+    </template>
+    
+    <!-- 멘티: 보낸 요청 목록 -->
+    <template x-if="userRole === 'mentee'">
+        <div class="space-y-6">
+            <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6">
+                <div class="stat">
+                    <div class="stat-title">전체 요청</div>
+                    <div class="stat-value text-primary" x-text="outgoingRequests.length"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">대기 중</div>
+                    <div class="stat-value text-warning" x-text="getRequestCountByStatus('pending')"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">수락됨</div>
+                    <div class="stat-value text-success" x-text="getRequestCountByStatus('accepted')"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">거절됨</div>
+                    <div class="stat-value text-error" x-text="getRequestCountByStatus('rejected')"></div>
+                </div>
+            </div>
+            
+            <!-- 요청 카드들 -->
+            <template x-for="request in outgoingRequests" :key="request.id">
+                <div class="card bg-base-100 shadow-xl">
+                    <div class="card-body">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-start space-x-4 flex-1">
+                                <div class="avatar">
+                                    <div class="w-16 h-16 rounded-full">
+                                        <img 
+                                            x-bind:src="`http://localhost:8080/api/images/mentor/${request.mentorId}`" 
+                                            x-bind:alt="`멘토 ${request.mentorId} 프로필`"
+                                            onerror="this.src='https://placehold.co/500x500.jpg?text=MENTOR'"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="card-title">멘토 #<span x-text="request.mentorId"></span></h3>
+                                    <p class="text-base-content/70" x-text="request.message"></p>
+                                    <p class="text-xs text-base-content/50 mt-2">요청 ID: <span x-text="request.id"></span></p>
+                                    <div id="request-status" class="mt-2">
+                                        상태: <span x-text="getStatusText(request.status)"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end space-y-2">
+                                <div class="badge" 
+                                     :class="{
+                                         'badge-warning': request.status === 'pending',
+                                         'badge-success': request.status === 'accepted',
+                                         'badge-error': request.status === 'rejected',
+                                         'badge-ghost': request.status === 'cancelled'
+                                     }"
+                                     x-text="getStatusText(request.status)">
+                                </div>
+                                
+                                <!-- 대기 중인 요청에만 취소 버튼 표시 -->
+                                <div x-show="request.status === 'pending'" class="space-x-2">
+                                    <button 
+                                        class="btn btn-error btn-sm"
+                                        @click="cancelRequest(request.id)"
+                                        :disabled="actionLoading"
+                                    >
+                                        취소
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- 빈 상태 -->
+            <div x-show="outgoingRequests.length === 0 && !loading" class="text-center py-12">
+                <svg class="w-16 h-16 mx-auto mb-4 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <h3 class="text-xl font-semibold mb-2">보낸 요청이 없습니다</h3>
+                <p class="text-base-content/70 mb-4">멘토를 찾아 매칭 요청을 보내보세요.</p>
+                <a href="/mentors/" class="btn btn-primary">멘토 찾기</a>
+            </div>
+        </div>
+    </template>
+    
+    <!-- 로딩 상태 -->
+    <div x-show="loading" class="text-center py-12">
+        <span class="loading loading-spinner loading-lg"></span>
+        <p class="mt-4">요청 목록을 불러오는 중입니다...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function requestsPage() {
+    return {
+        userRole: '',
+        userName: '',
+        userImage: 'https://placehold.co/500x500.jpg?text=USER',
+        incomingRequests: [],
+        outgoingRequests: [],
+        loading: false,
+        actionLoading: false,
+        
+        async init() {
+            await this.loadUserInfo();
+            await this.loadRequests();
+        },
+        
+        async loadUserInfo() {
+            try {
+                const response = await axios.get('/me');
+                const user = response.data;
+                this.userRole = user.role;
+                this.userName = user.profile.name;
+                this.userImage = `http://localhost:8080/api/images/${user.role}/${user.id}`;
+            } catch (error) {
+                console.error('Failed to load user info:', error);
+            }
+        },
+        
+        async loadRequests() {
+            this.loading = true;
+            try {
+                if (this.userRole === 'mentor') {
+                    const response = await axios.get('/match-requests/incoming');
+                    this.incomingRequests = response.data;
+                } else {
+                    const response = await axios.get('/match-requests/outgoing');
+                    this.outgoingRequests = response.data;
+                }
+            } catch (error) {
+                console.error('Failed to load requests:', error);
+                showToast('요청 목록을 불러올 수 없습니다.', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        getRequestCountByStatus(status) {
+            const requests = this.userRole === 'mentor' ? this.incomingRequests : this.outgoingRequests;
+            return requests.filter(request => request.status === status).length;
+        },
+        
+        getStatusText(status) {
+            const statusMap = {
+                'pending': '대기중',
+                'accepted': '수락됨',
+                'rejected': '거절됨',
+                'cancelled': '취소됨'
+            };
+            return statusMap[status] || status;
+        },
+        
+        async acceptRequest(requestId) {
+            this.actionLoading = true;
+            try {
+                await axios.put(`/match-requests/${requestId}/accept`);
+                showToast('매칭 요청을 수락했습니다!', 'success');
+                await this.loadRequests();
+            } catch (error) {
+                console.error('Failed to accept request:', error);
+                showToast(
+                    error.response?.data?.error || '요청 수락에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async rejectRequest(requestId) {
+            this.actionLoading = true;
+            try {
+                await axios.put(`/match-requests/${requestId}/reject`);
+                showToast('매칭 요청을 거절했습니다.', 'info');
+                await this.loadRequests();
+            } catch (error) {
+                console.error('Failed to reject request:', error);
+                showToast(
+                    error.response?.data?.error || '요청 거절에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async cancelRequest(requestId) {
+            this.actionLoading = true;
+            try {
+                await axios.delete(`/match-requests/${requestId}`);
+                showToast('매칭 요청을 취소했습니다.', 'info');
+                await this.loadRequests();
+            } catch (error) {
+                console.error('Failed to cancel request:', error);
+                showToast(
+                    error.response?.data?.error || '요청 취소에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        logout() {
+            localStorage.removeItem('jwt_token');
+            delete axios.defaults.headers.common['Authorization'];
+            window.location.href = '/';
+        }
+    }
+}
+
+// 페이지 로드 시 토큰 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        window.location.href = '/';
+    }
+});
+</script>
+{% endblock %}

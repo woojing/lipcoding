@@ -60,7 +60,14 @@ class GlobalAuth(HttpBearer):
             return None
 
 
-api = NinjaAPI(auth=GlobalAuth())
+api = NinjaAPI(
+    title="멘토-멘티 매칭 API",
+    version="1.0.0",
+    description="멘토와 멘티를 매칭하는 시스템의 REST API",
+    openapi_url="/openapi.json",  # OpenAPI JSON 파일 엔드포인트
+    docs_url="/docs",  # Swagger UI 엔드포인트 (기본값)
+    auth=GlobalAuth()
+)
 
 
 # 422 에러를 400으로 변환하는 예외 핸들러

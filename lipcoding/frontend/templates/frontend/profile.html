@@ -1,0 +1,345 @@
+{% extends 'frontend/base.html' %}
+
+{% block title %}프로필 관리 | 멘토-멘티 매칭 시스템{% endblock %}
+
+{% block navbar %}
+<div class="navbar bg-base-100 shadow-lg">
+    <div class="navbar-start">
+        <a class="btn btn-ghost text-xl" href="/dashboard/">
+            <span class="text-primary">💡</span>
+            멘토링 매칭
+        </a>
+    </div>
+    
+    <div class="navbar-center hidden lg:flex">
+        <ul class="menu menu-horizontal px-1">
+            <li><a href="/dashboard/" class="btn btn-ghost">대시보드</a></li>
+            <li><a href="/profile/" class="btn btn-ghost btn-active">프로필</a></li>
+            <li x-show="userRole === 'mentee'"><a href="/mentors/" class="btn btn-ghost">멘토 찾기</a></li>
+            <li><a href="/requests/" class="btn btn-ghost">매칭 요청</a></li>
+        </ul>
+    </div>
+    
+    <div class="navbar-end">
+        <div class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
+                <div class="w-10 rounded-full">
+                    <img id="navbar-avatar" x-bind:src="profileData.imageUrl" x-bind:alt="profileData.name + ' 프로필'" />
+                </div>
+            </div>
+            <ul class="menu menu-sm dropdown-content bg-base-100 rounded-box z-50 mt-3 w-52 p-2 shadow">
+                <li class="menu-title">
+                    <span x-text="profileData.name"></span>
+                    <span class="badge badge-primary badge-sm" x-text="profileData.role === 'mentor' ? '멘토' : '멘티'"></span>
+                </li>
+                <li><a href="/profile/">프로필 편집</a></li>
+                <li><a @click="logout()">로그아웃</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="profilePage()">
+    <!-- 페이지 헤더 -->
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">프로필 관리</h1>
+        <a href="/dashboard/" class="btn btn-outline">대시보드로 돌아가기</a>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- 프로필 미리보기 -->
+        <div class="lg:col-span-1">
+            <div class="card bg-base-100 shadow-xl sticky top-4">
+                <div class="card-body items-center text-center">
+                    <h2 class="card-title">프로필 미리보기</h2>
+                    
+                    <div class="avatar">
+                        <div class="w-32 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
+                            <img 
+                                id="profile-photo"
+                                x-bind:src="profileData.imageUrl" 
+                                x-bind:alt="profileData.name + ' 프로필'"
+                                onerror="this.src='https://placehold.co/500x500.jpg?text=USER'"
+                            />
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-semibold" x-text="profileData.name || '이름 없음'"></h3>
+                    <p class="text-base-content/70" x-text="profileData.email"></p>
+                    
+                    <div class="badge badge-primary" x-text="profileData.role === 'mentor' ? '멘토' : '멘티'"></div>
+                    
+                    <p class="text-sm text-center mt-4" x-text="profileData.bio || '자기소개를 입력해주세요.'"></p>
+                    
+                    <!-- 멘토의 경우 스킬 표시 -->
+                    <template x-if="profileData.role === 'mentor'">
+                        <div class="mt-4">
+                            <h4 class="font-semibold mb-2">기술 스택</h4>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="skill in profileData.skills" :key="skill">
+                                    <div class="badge badge-outline" x-text="skill"></div>
+                                </template>
+                                <div x-show="!profileData.skills || profileData.skills.length === 0" class="text-sm text-base-content/50">
+                                    기술 스택을 추가해주세요.
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 프로필 편집 폼 -->
+        <div class="lg:col-span-2">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">프로필 정보 수정</h2>
+                    
+                    <form @submit.prevent="updateProfile()" class="space-y-6">
+                        <!-- 프로필 이미지 업로드 -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">프로필 이미지</span>
+                                <span class="label-text-alt">JPG, PNG 파일만 업로드 가능 (최대 1MB)</span>
+                            </label>
+                            <input 
+                                type="file" 
+                                id="profile"
+                                class="file-input file-input-bordered w-full" 
+                                accept="image/jpeg,image/png"
+                                @change="handleImageUpload($event)"
+                            />
+                        </div>
+                        
+                        <!-- 이름 -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">이름 *</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                id="name"
+                                placeholder="이름을 입력하세요" 
+                                class="input input-bordered"
+                                x-model="profileData.name"
+                                required
+                            />
+                        </div>
+                        
+                        <!-- 자기소개 -->
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">자기소개</span>
+                            </label>
+                            <textarea 
+                                id="bio"
+                                class="textarea textarea-bordered h-24" 
+                                placeholder="자신을 소개해주세요"
+                                x-model="profileData.bio"
+                            ></textarea>
+                        </div>
+                        
+                        <!-- 멘토의 경우 스킬 입력 -->
+                        <template x-if="profileData.role === 'mentor'">
+                            <div class="form-control">
+                                <label class="label">
+                                    <span class="label-text">기술 스택</span>
+                                    <span class="label-text-alt">콤마(,)로 구분하여 입력</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    id="skillsets"
+                                    placeholder="React, Vue, Node.js" 
+                                    class="input input-bordered"
+                                    x-model="skillsInput"
+                                    @input="updateSkills()"
+                                />
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <template x-for="skill in profileData.skills" :key="skill">
+                                        <div class="badge badge-primary gap-2">
+                                            <span x-text="skill"></span>
+                                            <button type="button" @click="removeSkill(skill)" class="btn btn-xs btn-circle btn-ghost">✕</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <!-- 제출 버튼 -->
+                        <div class="form-control mt-8">
+                            <button 
+                                type="submit" 
+                                id="save"
+                                class="btn btn-primary"
+                                :disabled="loading"
+                            >
+                                <span x-show="loading" class="loading loading-spinner loading-xs"></span>
+                                <span x-text="loading ? '저장 중...' : '프로필 저장'"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function profilePage() {
+    return {
+        loading: false,
+        profileData: {
+            id: '',
+            name: '',
+            email: '',
+            role: '',
+            bio: '',
+            skills: [],
+            imageUrl: 'https://placehold.co/500x500.jpg?text=USER'
+        },
+        skillsInput: '',
+        imageBase64: '',
+        
+        async init() {
+            await this.loadProfile();
+        },
+        
+        async loadProfile() {
+            try {
+                const response = await axios.get('/me');
+                const user = response.data;
+                
+                this.profileData = {
+                    id: user.id,
+                    name: user.profile.name || '',
+                    email: user.email,
+                    role: user.role,
+                    bio: user.profile.bio || '',
+                    skills: user.profile.skills || [],
+                    imageUrl: `http://localhost:8080/api/images/${user.role}/${user.id}`
+                };
+                
+                // 스킬 입력 필드 초기화
+                this.skillsInput = this.profileData.skills.join(', ');
+                
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+                showToast('프로필 정보를 불러올 수 없습니다.', 'error');
+            }
+        },
+        
+        async handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // 파일 크기 검증 (1MB)
+            if (file.size > 1024 * 1024) {
+                showToast('이미지 크기는 1MB 이하여야 합니다.', 'error');
+                event.target.value = '';
+                return;
+            }
+            
+            // 파일 형식 검증
+            if (!['image/jpeg', 'image/png'].includes(file.type)) {
+                showToast('JPG 또는 PNG 파일만 업로드할 수 있습니다.', 'error');
+                event.target.value = '';
+                return;
+            }
+            
+            try {
+                // Base64 인코딩
+                this.imageBase64 = await encodeImageToBase64(file);
+                
+                // 미리보기 업데이트
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.profileData.imageUrl = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                
+                showToast('이미지가 업로드되었습니다. 저장 버튼을 눌러주세요.', 'success');
+                
+            } catch (error) {
+                console.error('Image upload error:', error);
+                showToast('이미지 업로드 중 오류가 발생했습니다.', 'error');
+            }
+        },
+        
+        updateSkills() {
+            this.profileData.skills = this.skillsInput
+                .split(',')
+                .map(skill => skill.trim())
+                .filter(skill => skill.length > 0);
+        },
+        
+        removeSkill(skillToRemove) {
+            this.profileData.skills = this.profileData.skills.filter(skill => skill !== skillToRemove);
+            this.skillsInput = this.profileData.skills.join(', ');
+        },
+        
+        async updateProfile() {
+            this.loading = true;
+            
+            try {
+                const updateData = {
+                    id: this.profileData.id,
+                    name: this.profileData.name,
+                    role: this.profileData.role,
+                    bio: this.profileData.bio
+                };
+                
+                // 멘토의 경우 스킬 추가
+                if (this.profileData.role === 'mentor') {
+                    updateData.skills = this.profileData.skills;
+                }
+                
+                // 이미지가 업로드된 경우 추가
+                if (this.imageBase64) {
+                    updateData.image = this.imageBase64;
+                }
+                
+                await axios.put('/profile', updateData);
+                
+                showToast('프로필이 성공적으로 업데이트되었습니다!', 'success');
+                
+                // 이미지 Base64 초기화
+                this.imageBase64 = '';
+                
+                // 네비게이션 아바타 업데이트
+                const navbarAvatar = document.getElementById('navbar-avatar');
+                if (navbarAvatar && updateData.image) {
+                    navbarAvatar.src = this.profileData.imageUrl;
+                }
+                
+            } catch (error) {
+                console.error('Profile update error:', error);
+                showToast(
+                    error.response?.data?.error || '프로필 업데이트에 실패했습니다.', 
+                    'error'
+                );
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        logout() {
+            localStorage.removeItem('jwt_token');
+            delete axios.defaults.headers.common['Authorization'];
+            window.location.href = '/';
+        }
+    }
+}
+
+// 페이지 로드 시 토큰 확인
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('jwt_token');
+    if (!token) {
+        window.location.href = '/';
+    }
+});
+</script>
+{% endblock %}
