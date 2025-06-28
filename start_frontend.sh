@@ -42,4 +42,4 @@ echo ""
 export DJANGO_SETTINGS_MODULE=lipcoding.settings
 
 # Django 개발 서버 실행 (3000 포트)
-python manage.py runserver 3000
+python manage.py runserver 3000 &

@@ -43,4 +43,4 @@ echo ""
 export DJANGO_SETTINGS_MODULE=lipcoding.settings
 
 # Django 개발 서버 실행 (8080 포트)
-python manage.py runserver 8080
+python manage.py runserver 8080 &
