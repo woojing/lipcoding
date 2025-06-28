@@ -39,3 +39,18 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+class Skill(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    bio = models.TextField(blank=True)
+    image_url = models.URLField(max_length=200, blank=True, default='https://placehold.co/500x500.jpg?text=USER')
+    skills = models.ManyToManyField(Skill, blank=True)
+
+    def __str__(self):
+        return f"{self.user.name}'s Profile"
