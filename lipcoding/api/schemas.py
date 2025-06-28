@@ -14,14 +14,19 @@ class LoginSchema(Schema):
 class TokenSchema(Schema):
     token: str
 
-class ProfileSchema(Schema):
+class BaseProfileSchema(Schema):
     name: str
     bio: str
     imageUrl: str
-    skills: list[str] = None
+
+class MentorProfileSchema(BaseProfileSchema):
+    skills: List[str]
+
+class MenteeProfileSchema(BaseProfileSchema):
+    pass
 
 class ProfileResponseSchema(Schema):
     id: int
     email: str
     role: str
-    profile: ProfileSchema
+    profile: dict  # Union type을 사용하여 조건부로 다른 스키마 적용
