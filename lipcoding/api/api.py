@@ -185,28 +185,19 @@ def update_profile(request: HttpRequest):
 
     profile.bio = data["bio"]
 
-    # 이미지 처리 (Base64 -> 파일 저장)
+    # 이미지 처리 (Base64 -> DB 저장)
     if "image" in data and data["image"]:
         import base64
-        from django.conf import settings
 
         try:
             # Base64 디코딩
             image_data = base64.b64decode(data["image"])
-
-            # 미디어 디렉토리 생성
-            media_dir = settings.MEDIA_ROOT / "profile_images" / user.role
-            media_dir.mkdir(parents=True, exist_ok=True)
-
-            # 파일명 생성 (user_id.jpg)
-            filename = f"{user.id}.jpg"
-            filepath = media_dir / filename
-
-            # 파일 저장
-            with open(filepath, "wb") as f:
-                f.write(image_data)
-
-            # 이미지 URL 업데이트
+            
+            # 이미지 데이터를 DB에 저장
+            profile.image_data = image_data
+            profile.image_content_type = "image/jpeg"  # 기본값으로 JPEG 설정
+            
+            # 이미지 URL을 DB 이미지 조회 경로로 업데이트
             profile.image_url = f"/images/{user.role}/{user.id}"
 
         except Exception as e:
@@ -252,31 +243,31 @@ def update_profile(request: HttpRequest):
 
 @router.get("/images/{role}/{user_id}", response={200: None, 404: dict, 401: dict})
 def get_profile_image(request: HttpRequest, role: str, user_id: int):
-    """프로필 이미지 조회 API"""
-    from django.http import FileResponse
-    from django.conf import settings
-    import mimetypes
+    """프로필 이미지 조회 API (DB에서 이미지 데이터 반환)"""
+    from django.http import HttpResponse
 
     # 역할 검증
     if role not in ["mentor", "mentee"]:
         return 404, {"error": "Invalid role"}
 
-    # 이미지 파일 경로
-    filepath = settings.MEDIA_ROOT / "profile_images" / role / f"{user_id}.jpg"
-
-    # 파일 존재 여부 확인
-    if not filepath.exists():
-        return 404, {"error": "Image not found"}
-
-    # 이미지 파일 반환
-    content_type, _ = mimetypes.guess_type(str(filepath))
-    if not content_type:
-        content_type = "image/jpeg"
-
-    response = FileResponse(
-        open(filepath, "rb"), content_type=content_type, as_attachment=False
-    )
-    return response
+    try:
+        # 사용자와 프로필 조회
+        user = User.objects.get(id=user_id, role=role)
+        profile = Profile.objects.get(user=user)
+        
+        # 이미지 데이터가 없는 경우
+        if not profile.image_data:
+            return 404, {"error": "Image not found"}
+            
+        # DB에서 이미지 데이터 반환
+        response = HttpResponse(
+            profile.image_data, 
+            content_type=profile.image_content_type
+        )
+        return response
+        
+    except (User.DoesNotExist, Profile.DoesNotExist):
+        return 404, {"error": "User or profile not found"}
 
 
 @api.get(

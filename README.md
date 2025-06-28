@@ -182,4 +182,12 @@ PUT    /api/match-requests/{id}/reject  # 요청 거절 (멘토 전용)
 DELETE /api/match-requests/{id}        # 요청 취소 (멘티 전용)
 ```
 
+## 13. 프로필 이미지 저장 방식 개선 ✅ **완료**
+- **데이터베이스 저장 방식으로 변경**: 기존 파일 시스템 저장에서 데이터베이스 직접 저장으로 개선
+- **Profile 모델 확장**: `image_data` (BinaryField), `image_content_type` 필드 추가
+- **Base64 이미지 처리**: Base64 인코딩된 이미지를 디코딩하여 DB에 바이너리 데이터로 저장
+- **이미지 조회 최적화**: DB에서 직접 이미지 데이터를 읽어와 HTTP 응답으로 반환
+- **마이그레이션 적용**: `0004_profile_image_content_type_profile_image_data.py` 마이그레이션 생성 및 적용
+- **모든 테스트 통과**: 40개 테스트 모두 정상 동작 확인
+
 ---
